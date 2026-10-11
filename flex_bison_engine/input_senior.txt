@@ -1,0 +1,18 @@
+input age;
+input total_purchase;
+
+discount_percent = 0;
+
+if (age >= 60) {
+    discount_percent = 15%;
+} else {
+    discount_percent = 5%;
+}
+
+discount_amount = total_purchase * discount_percent;
+final_price = total_purchase - discount_amount;
+
+print "Discount Amount Applied:";
+print discount_amount;
+print "Final Amount to Pay:";
+print final_price;

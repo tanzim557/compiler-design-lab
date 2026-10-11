@@ -1,0 +1,627 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Financial & Tax Rules Engine</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- FontAwesome & Google Fonts -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Monaco Editor styles -->
+    <link rel="stylesheet" data-name="vs/editor/editor.main" href="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.43.0/min/vs/editor/editor.main.min.css">
+    
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        mono: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', 'monospace'],
+                    },
+                    colors: {
+                        primary: '#3b82f6',
+                        dark: '#0f172a',
+                        darker: '#0b1121',
+                        light: '#f8fafc',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        /* Custom scrollbar for webkit */
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: rgba(0,0,0,0.05); }
+        .dark ::-webkit-scrollbar-track { background: rgba(255,255,255,0.02); }
+        ::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.2); border-radius: 4px; }
+        .dark ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(0,0,0,0.3); }
+        .dark ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
+
+        #editor-container { height: 100%; width: 100%; }
+        .monaco-editor-wrapper { padding: 8px; background: #1e1e1e; border-radius: 0.75rem; overflow: hidden; }
+        
+        .animate-fade-in { animation: fadeIn 0.3s ease-in-out; }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(5px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-900 dark:bg-darker dark:text-slate-100 min-h-screen flex flex-col transition-colors duration-300">
+
+    <!-- Navbar -->
+    <nav class="flex items-center justify-between p-4 bg-white/80 dark:bg-dark/80 backdrop-blur-md shadow-sm border-b dark:border-slate-800 sticky top-0 z-10">
+        <div class="flex items-center space-x-3">
+            <div class="bg-gradient-to-r from-blue-500 to-indigo-600 text-white p-2 rounded-lg shadow-lg">
+                <i class="fas fa-bolt w-5 h-5 flex items-center justify-center"></i>
+            </div>
+            <h1 class="text-xl font-bold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-indigo-600 dark:from-blue-400 dark:to-indigo-400">
+                FinRules Engine
+            </h1>
+        </div>
+        <div class="flex items-center space-x-4">
+            <button id="theme-toggle" class="w-10 h-10 flex items-center justify-center rounded-full hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors text-slate-500 dark:text-slate-400">
+                <i class="fas fa-moon dark:hidden text-lg"></i>
+                <i class="fas fa-sun hidden dark:block text-lg"></i>
+            </button>
+            <button id="btn-run" class="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white px-6 py-2.5 rounded-full shadow-lg shadow-blue-500/30 flex items-center space-x-2 transition-all transform hover:-translate-y-0.5 active:scale-95 font-medium">
+                <i class="fas fa-play text-sm"></i>
+                <span>Execute Rules</span>
+            </button>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="flex-1 max-w-[1400px] w-full mx-auto p-4 lg:p-6 grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8">
+        
+        <!-- Left Column: Editor & Logs -->
+        <section class="lg:col-span-7 flex flex-col space-y-4 h-[calc(100vh-120px)]">
+            <div class="flex justify-between items-center">
+                <h2 class="text-lg font-semibold flex items-center text-slate-700 dark:text-slate-200">
+                    <i class="fas fa-code mr-2 text-blue-500"></i> DSL Rule Editor
+                </h2>
+                <div class="relative">
+                    <select id="template-select" class="appearance-none bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-sm rounded-lg pl-4 pr-10 py-2 focus:ring-2 focus:ring-blue-500 outline-none shadow-sm text-slate-700 dark:text-slate-200 cursor-pointer font-medium transition-colors hover:border-blue-400">
+                        <option value="tax">Income Tax Slab Rules</option>
+                        <option value="senior">Senior Citizen Discount</option>
+                        <option value="ecommerce">E-commerce Discount</option>
+                    </select>
+                    <i class="fas fa-chevron-down absolute right-3 top-1/2 transform -translate-y-1/2 text-slate-400 pointer-events-none text-xs"></i>
+                </div>
+            </div>
+            
+            <!-- Editor -->
+            <div class="monaco-editor-wrapper shadow-xl flex-1 border border-slate-200 dark:border-slate-700 relative group">
+                <div id="editor-container"></div>
+                <div class="absolute top-2 right-4 text-xs font-mono text-slate-500 bg-black/40 px-2 py-1 rounded backdrop-blur-sm pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity">
+                    JavaScript-like DSL
+                </div>
+            </div>
+
+            <!-- Console Log -->
+            <div class="bg-[#0d1117] text-green-400 p-4 rounded-xl font-mono text-sm h-48 overflow-y-auto shadow-inner relative border border-slate-800">
+                <div class="absolute top-3 right-4 text-xs text-slate-500 uppercase tracking-wider font-semibold">Console Output</div>
+                <div id="console-output" class="pt-2 space-y-1">
+                    <div class="text-slate-500">System ready. Select a template and click "Execute Rules".</div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Right Column: Controls & Result -->
+        <section class="lg:col-span-5 flex flex-col space-y-6 h-full">
+            
+            <!-- Customer Variables -->
+            <div class="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-lg border border-slate-200 dark:border-slate-700">
+                <h2 class="text-lg font-semibold mb-6 flex items-center text-slate-700 dark:text-slate-200">
+                    <i class="fas fa-sliders-h mr-2 text-indigo-500"></i> Customer Data Variables
+                </h2>
+                
+                <div class="space-y-6">
+                    <div class="group" id="group-income">
+                        <label class="flex justify-between text-sm font-medium mb-2">
+                            <span class="text-slate-600 dark:text-slate-400">Annual Income</span>
+                            <span class="text-blue-600 dark:text-blue-400 font-bold bg-blue-50 dark:bg-blue-900/30 px-2 rounded">$<span id="val-income">600,000</span></span>
+                        </label>
+                        <input type="range" id="input-income" min="0" max="2000000" step="10000" value="600000" class="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer dark:bg-slate-700 accent-blue-500">
+                    </div>
+                    <div class="group" id="group-age" style="display: none;">
+                        <label class="flex justify-between text-sm font-medium mb-2">
+                            <span class="text-slate-600 dark:text-slate-400">Customer Age</span>
+                            <span class="text-blue-600 dark:text-blue-400 font-bold bg-blue-50 dark:bg-blue-900/30 px-2 rounded"><span id="val-age">65</span> yrs</span>
+                        </label>
+                        <input type="range" id="input-age" min="18" max="100" step="1" value="65" class="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer dark:bg-slate-700 accent-blue-500">
+                    </div>
+                    <div class="group" id="group-credit" style="display: none;">
+                        <label class="flex justify-between text-sm font-medium mb-2">
+                            <span class="text-slate-600 dark:text-slate-400">Credit Score</span>
+                            <span class="text-blue-600 dark:text-blue-400 font-bold bg-blue-50 dark:bg-blue-900/30 px-2 rounded"><span id="val-credit">780</span></span>
+                        </label>
+                        <input type="range" id="input-credit" min="300" max="850" step="10" value="780" class="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer dark:bg-slate-700 accent-blue-500">
+                    </div>
+                    <div class="group" id="group-purchase" style="display: none;">
+                        <label class="flex justify-between text-sm font-medium mb-2">
+                            <span class="text-slate-600 dark:text-slate-400">Total Purchase</span>
+                            <span class="text-blue-600 dark:text-blue-400 font-bold bg-blue-50 dark:bg-blue-900/30 px-2 rounded">$<span id="val-purchase">15,000</span></span>
+                        </label>
+                        <input type="range" id="input-purchase" min="0" max="50000" step="1000" value="15000" class="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer dark:bg-slate-700 accent-blue-500">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Execution Results -->
+            <div class="bg-gradient-to-br from-blue-600 to-indigo-700 p-8 rounded-2xl shadow-xl text-white relative overflow-hidden flex-1 flex flex-col justify-center transform transition-all duration-300">
+                <!-- Decorative BG Elements -->
+                <div class="absolute top-0 right-0 -mr-16 -mt-16 w-64 h-64 rounded-full bg-white opacity-5 mix-blend-overlay pointer-events-none"></div>
+                <div class="absolute bottom-0 left-0 -ml-16 -mb-16 w-48 h-48 rounded-full bg-black opacity-10 mix-blend-overlay pointer-events-none"></div>
+                
+                <h2 class="text-lg font-medium mb-2 opacity-90 flex items-center z-10">
+                    <i class="fas fa-chart-line mr-2"></i> Live Calculation Result
+                </h2>
+                
+                <div id="result-display" class="text-4xl lg:text-5xl font-bold tracking-tight mt-2 z-10 drop-shadow-md">
+                    --
+                </div>
+                
+                <div class="mt-8 z-10">
+                    <p class="text-xs opacity-70 uppercase tracking-widest font-semibold mb-2">Final Engine State</p>
+                    <div class="bg-black/20 backdrop-blur-md p-4 rounded-xl font-mono text-sm whitespace-pre-wrap min-h-[80px] border border-white/10 overflow-x-auto" id="env-state">
+                        {
+  // Run rules to see output state
+}
+                    </div>
+                </div>
+            </div>
+            
+        </section>
+    </main>
+    
+    <!-- JavaScript Logic -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.43.0/min/vs/loader.min.js"></script>
+    <script>
+        // --- 1. Templates Setup ---
+        const templates = {
+            tax: `// 🏦 Income Tax Slab Rules
+tax = 0;
+
+if (income > 500000) {
+    tax = (income - 500000) * 10%;
+}
+if (income > 1000000) {
+    tax = tax + (income - 1000000) * 20%;
+}
+
+print "Calculated Tax Amount:";
+print tax;
+`,
+            senior: `// 👵 Senior Citizen Special Discount
+discount_percent = 0;
+
+if (age >= 60) {
+    discount_percent = 15%;
+} else {
+    discount_percent = 5%;
+}
+
+discount_amount = total_purchase * discount_percent;
+final_price = total_purchase - discount_amount;
+
+print "Discount Amount Applied:";
+print discount_amount;
+print "Final Amount to Pay:";
+print final_price;
+`,
+            ecommerce: `// 🛒 E-commerce Discount Rule
+discount = 0;
+
+// Base volume discount
+if (total_purchase > 10000) {
+    discount = 5%;
+}
+
+// Loyalty bonus based on credit score
+if (credit_score > 750) {
+    discount = discount + 2%;
+}
+
+final_price = total_purchase - (total_purchase * discount);
+
+print "Final Price after discount:";
+print final_price;
+`
+        };
+
+        // --- 2. Lexer & Parser (DSL Interpreter Engine) ---
+        
+        function tokenize(code) {
+            const rules = [
+                { type: 'SPACE', regex: /^\s+/ },
+                { type: 'COMMENT', regex: /^\/\/.*/ },
+                { type: 'STRING', regex: /^"([^"\\]|\\.)*"/ },
+                { type: 'PERCENT', regex: /^\d+(\.\d+)?%/ },
+                { type: 'NUMBER', regex: /^\d+(\.\d+)?/ },
+                { type: 'KEYWORD', regex: /^(if|else|print|output)\b/ },
+                { type: 'IDENTIFIER', regex: /^[a-zA-Z_]\w*/ },
+                { type: 'OP_COMPARE', regex: /^(==|!=|<=|>=|<|>)/ },
+                { type: 'OP_MATH', regex: /^(\+|\-|\*|\/)/ },
+                { type: 'ASSIGN', regex: /^=/ },
+                { type: 'PUNCT', regex: /^[{}();]/ }
+            ];
+
+            let pos = 0;
+            const tokens = [];
+            let line = 1;
+
+            while (pos < code.length) {
+                let match = null;
+                let matchedCode = code.slice(pos);
+
+                for (const rule of rules) {
+                    match = rule.regex.exec(matchedCode);
+                    if (match) {
+                        if (rule.type === 'SPACE') {
+                            line += (match[0].match(/\n/g) || []).length;
+                        } else if (rule.type !== 'COMMENT') {
+                            tokens.push({ type: rule.type, value: match[0], line });
+                        }
+                        pos += match[0].length;
+                        break;
+                    }
+                }
+
+                if (!match) {
+                    throw new Error(`Syntax error at line ${line}: Unexpected token near "${matchedCode.slice(0, 10)}..."`);
+                }
+            }
+            return tokens;
+        }
+
+        class Parser {
+            constructor(tokens) {
+                this.tokens = tokens;
+                this.pos = 0;
+            }
+            peek() { return this.tokens[this.pos]; }
+            consume(type, value) {
+                const token = this.peek();
+                if (token && token.type === type && (!value || token.value === value)) {
+                    this.pos++;
+                    return token;
+                }
+                return null;
+            }
+            expect(type, value) {
+                const token = this.consume(type, value);
+                if (!token) {
+                    const t = this.peek();
+                    throw new Error(`Expected ${value || type} but found ${t ? t.value : 'EOF'}`);
+                }
+                return token;
+            }
+            parse() {
+                const statements = [];
+                while (this.pos < this.tokens.length) {
+                    statements.push(this.parseStatement());
+                }
+                return { type: 'Program', body: statements };
+            }
+            parseStatement() {
+                const token = this.peek();
+                if (!token) return null;
+                if (token.type === 'KEYWORD') {
+                    if (token.value === 'if') return this.parseIf();
+                    if (token.value === 'print' || token.value === 'output') return this.parsePrint();
+                }
+                if (token.type === 'IDENTIFIER') {
+                    return this.parseAssignment();
+                }
+                throw new Error(`Unexpected token at line ${token.line}: '${token.value}'`);
+            }
+            parseBlock() {
+                this.expect('PUNCT', '{');
+                const statements = [];
+                while (this.peek() && this.peek().value !== '}') {
+                    statements.push(this.parseStatement());
+                }
+                this.expect('PUNCT', '}');
+                return { type: 'Block', body: statements };
+            }
+            parseIf() {
+                this.consume('KEYWORD', 'if');
+                this.expect('PUNCT', '(');
+                const condition = this.parseExpression();
+                this.expect('PUNCT', ')');
+                const consequent = this.parseBlock();
+                let alternate = null;
+                if (this.consume('KEYWORD', 'else')) {
+                    if (this.peek() && this.peek().value === 'if') alternate = this.parseIf();
+                    else alternate = this.parseBlock();
+                }
+                return { type: 'IfStatement', condition, consequent, alternate };
+            }
+            parsePrint() {
+                this.pos++; // consume print/output
+                const expression = this.parseExpression();
+                this.expect('PUNCT', ';');
+                return { type: 'PrintStatement', expression };
+            }
+            parseAssignment() {
+                const idToken = this.consume('IDENTIFIER');
+                this.expect('ASSIGN', '=');
+                const right = this.parseExpression();
+                this.expect('PUNCT', ';');
+                return { type: 'Assignment', left: idToken.value, right };
+            }
+            parseExpression() { return this.parseComparison(); }
+            parseComparison() {
+                let left = this.parseAdditive();
+                let token = this.peek();
+                while (token && token.type === 'OP_COMPARE') {
+                    this.pos++;
+                    left = { type: 'BinaryExpression', operator: token.value, left, right: this.parseAdditive() };
+                    token = this.peek();
+                }
+                return left;
+            }
+            parseAdditive() {
+                let left = this.parseMultiplicative();
+                let token = this.peek();
+                while (token && token.type === 'OP_MATH' && (token.value === '+' || token.value === '-')) {
+                    this.pos++;
+                    left = { type: 'BinaryExpression', operator: token.value, left, right: this.parseMultiplicative() };
+                    token = this.peek();
+                }
+                return left;
+            }
+            parseMultiplicative() {
+                let left = this.parsePrimary();
+                let token = this.peek();
+                while (token && token.type === 'OP_MATH' && (token.value === '*' || token.value === '/')) {
+                    this.pos++;
+                    left = { type: 'BinaryExpression', operator: token.value, left, right: this.parsePrimary() };
+                    token = this.peek();
+                }
+                return left;
+            }
+            parsePrimary() {
+                const token = this.peek();
+                if (!token) throw new Error("Unexpected EOF");
+                if (token.type === 'NUMBER') {
+                    this.pos++;
+                    return { type: 'Literal', value: parseFloat(token.value) };
+                }
+                if (token.type === 'PERCENT') {
+                    this.pos++;
+                    return { type: 'Literal', value: parseFloat(token.value) / 100 };
+                }
+                if (token.type === 'STRING') {
+                    this.pos++;
+                    return { type: 'Literal', value: token.value.slice(1, -1) };
+                }
+                if (token.type === 'IDENTIFIER') {
+                    this.pos++;
+                    return { type: 'Identifier', name: token.value };
+                }
+                if (token.type === 'PUNCT' && token.value === '(') {
+                    this.pos++;
+                    const expr = this.parseExpression();
+                    this.expect('PUNCT', ')');
+                    return expr;
+                }
+                throw new Error(`Unexpected token in expression at line ${token.line}: '${token.value}'`);
+            }
+        }
+
+        class Interpreter {
+            constructor() {
+                this.env = {};
+                this.logs = [];
+            }
+            evaluate(node) {
+                if (!node) return null;
+                switch (node.type) {
+                    case 'Program':
+                    case 'Block':
+                        let lastVal = null;
+                        for (const stmt of node.body) lastVal = this.evaluate(stmt);
+                        return lastVal;
+                    case 'Assignment':
+                        const val = this.evaluate(node.right);
+                        this.env[node.left] = val;
+                        return val;
+                    case 'PrintStatement':
+                        const pVal = this.evaluate(node.expression);
+                        this.logs.push(pVal);
+                        return pVal;
+                    case 'IfStatement':
+                        if (this.evaluate(node.condition)) {
+                            return this.evaluate(node.consequent);
+                        } else if (node.alternate) {
+                            return this.evaluate(node.alternate);
+                        }
+                        return null;
+                    case 'BinaryExpression':
+                        const l = this.evaluate(node.left);
+                        const r = this.evaluate(node.right);
+                        switch (node.operator) {
+                            case '+': return l + r;
+                            case '-': return l - r;
+                            case '*': return l * r;
+                            case '/': return l / r;
+                            case '<': return l < r;
+                            case '>': return l > r;
+                            case '<=': return l <= r;
+                            case '>=': return l >= r;
+                            case '==': return l == r;
+                            case '!=': return l != r;
+                        }
+                        break;
+                    case 'Literal':
+                        return node.value;
+                    case 'Identifier':
+                        return this.env[node.name] !== undefined ? this.env[node.name] : 0;
+                }
+            }
+            run(ast, initialEnv = {}) {
+                this.env = { ...initialEnv };
+                this.logs = [];
+                this.evaluate(ast);
+                return { env: this.env, logs: this.logs };
+            }
+        }
+
+        // --- 3. UI Initialization & Monaco Editor ---
+        
+        let editor;
+        require.config({ paths: { 'vs': 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.43.0/min/vs' }});
+        require(['vs/editor/editor.main'], function() {
+            editor = monaco.editor.create(document.getElementById('editor-container'), {
+                value: templates['tax'],
+                language: 'javascript',
+                theme: document.documentElement.classList.contains('dark') ? 'vs-dark' : 'vs',
+                automaticLayout: true,
+                minimap: { enabled: false },
+                fontSize: 14,
+                padding: { top: 16 },
+                scrollBeyondLastLine: false,
+                roundedSelection: true,
+            });
+        });
+
+        // Theme Toggle
+        document.getElementById('theme-toggle').addEventListener('click', () => {
+            document.documentElement.classList.toggle('dark');
+            const isDark = document.documentElement.classList.contains('dark');
+            if (editor) {
+                monaco.editor.setTheme(isDark ? 'vs-dark' : 'vs');
+            }
+        });
+
+        // Template Selection
+        document.getElementById('template-select').addEventListener('change', (e) => {
+            if (!editor) return;
+            const val = e.target.value;
+            editor.setValue(templates[val]);
+            
+            document.getElementById('group-income').style.display = 'none';
+            document.getElementById('group-age').style.display = 'none';
+            document.getElementById('group-credit').style.display = 'none';
+            document.getElementById('group-purchase').style.display = 'none';
+
+            // Adjust slider defaults to showcase the selected rule
+            if(val === 'tax') {
+                document.getElementById('group-income').style.display = 'block';
+                updateInput('income', 600000);
+            } else if (val === 'senior') {
+                document.getElementById('group-age').style.display = 'block';
+                document.getElementById('group-purchase').style.display = 'block';
+                updateInput('age', 65);
+                updateInput('purchase', 1000);
+            } else if (val === 'ecommerce') {
+                document.getElementById('group-credit').style.display = 'block';
+                document.getElementById('group-purchase').style.display = 'block';
+                updateInput('purchase', 15000);
+                updateInput('credit', 780);
+            }
+            // Reset output display
+            document.getElementById('result-display').textContent = '--';
+            document.getElementById('console-output').innerHTML = '<div class="text-slate-500 animate-fade-in">Template loaded. Click "Execute Rules" to test.</div>';
+            document.getElementById('env-state').textContent = '{\n  // Run rules to see output state\n}';
+        });
+
+        function updateInput(id, value) {
+            const el = document.getElementById(`input-${id}`);
+            el.value = value;
+            el.dispatchEvent(new Event('input'));
+        }
+
+        // Setup sliders synchronization
+        const formatter = new Intl.NumberFormat('en-US');
+        const inputs = ['income', 'age', 'credit', 'purchase'];
+        inputs.forEach(id => {
+            const el = document.getElementById(`input-${id}`);
+            const valEl = document.getElementById(`val-${id}`);
+            el.addEventListener('input', (e) => {
+                valEl.textContent = formatter.format(e.target.value);
+            });
+        });
+
+        // --- 4. Execution Engine Integration ---
+        
+        document.getElementById('btn-run').addEventListener('click', () => {
+            if (!editor) return;
+            
+            const code = editor.getValue();
+            const consoleEl = document.getElementById('console-output');
+            const resultEl = document.getElementById('result-display');
+            const envEl = document.getElementById('env-state');
+            
+            consoleEl.innerHTML = '';
+            
+            try {
+                // Parse
+                const tokens = tokenize(code);
+                const parser = new Parser(tokens);
+                const ast = parser.parse();
+                
+                // Get State
+                const initialEnv = {
+                    income: parseFloat(document.getElementById('input-income').value),
+                    age: parseFloat(document.getElementById('input-age').value),
+                    credit_score: parseFloat(document.getElementById('input-credit').value),
+                    total_purchase: parseFloat(document.getElementById('input-purchase').value),
+                };
+                
+                // Execute
+                const interpreter = new Interpreter();
+                const { env, logs } = interpreter.run(ast, initialEnv);
+                
+                // Print Logs
+                logs.forEach(log => {
+                    const div = document.createElement('div');
+                    div.className = "animate-fade-in";
+                    div.textContent = `> ${log}`;
+                    consoleEl.appendChild(div);
+                });
+                
+                if (logs.length === 0) {
+                    consoleEl.innerHTML = '<span class="text-slate-500 animate-fade-in">Execution completed. No outputs logged.</span>';
+                }
+                
+                // Determine main display output automatically based on calculated variables
+                let mainRes = 'Success';
+                if (env.tax !== undefined) mainRes = `Tax: $${formatter.format(env.tax)}`;
+                else if (env.final_price !== undefined) mainRes = `Final: $${formatter.format(env.final_price)}`;
+                else if (env.discount !== undefined) mainRes = `Discount: ${(env.discount * 100).toFixed(1)}%`;
+                else if (env.discount_amount !== undefined) mainRes = `Saved: $${formatter.format(env.discount_amount)}`;
+                else if (env.discount_percent !== undefined) mainRes = `Discount: ${(env.discount_percent * 100).toFixed(1)}%`;
+                
+                resultEl.innerHTML = `<span class="animate-fade-in block">${mainRes}</span>`;
+                
+                // Pretty print the delta environment (calculated variables only)
+                const calculatedEnv = {};
+                for (const key in env) {
+                    if (!(key in initialEnv)) {
+                        calculatedEnv[key] = env[key];
+                    }
+                }
+                envEl.innerHTML = `<span class="animate-fade-in block">${JSON.stringify(calculatedEnv, null, 2)}</span>`;
+                
+            } catch (e) {
+                const errDiv = document.createElement('div');
+                errDiv.className = 'text-red-400 font-bold animate-fade-in mt-1';
+                errDiv.textContent = `[Error] ${e.message}`;
+                consoleEl.appendChild(errDiv);
+                resultEl.innerHTML = '<span class="text-red-300 animate-fade-in">Syntax Error</span>';
+            }
+        });
+    </script>
+</body>
+</html>

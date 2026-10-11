@@ -1,0 +1,17 @@
+input total_purchase;
+input credit_score;
+
+discount = 0;
+
+if (total_purchase > 10000) {
+    discount = 5%;
+}
+
+if (credit_score > 750) {
+    discount = discount + 2%;
+}
+
+final_price = total_purchase - (total_purchase * discount);
+
+print "Final Price after discount:";
+print final_price;
